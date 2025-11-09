@@ -15,7 +15,7 @@ const initialTasks: Task[] = [
     description: '提交你的第一个任务，体验平台功能',
     reward: 50,
     status: 'completed' as TaskStatus,
-    category: 'onboarding' as any,
+    category: 'onboarding',
     startDate: new Date('2024-01-01'),
     requirements: ['注册账号', '完成身份验证', '提交任务']
   },
@@ -25,7 +25,7 @@ const initialTasks: Task[] = [
     description: '分享你的邀请链接，邀请好友加入平台',
     reward: 100,
     status: 'active' as TaskStatus,
-    category: 'social' as any,
+    category: 'social',
     progress: 1,
     total: 3,
     startDate: new Date('2024-01-02'),
@@ -37,7 +37,7 @@ const initialTasks: Task[] = [
     description: '保持活跃，每天登录平台签到',
     reward: 200,
     status: 'active' as TaskStatus,
-    category: 'daily' as any,
+    category: 'daily',
     progress: 3,
     total: 7,
     startDate: new Date('2024-01-03'),
@@ -50,14 +50,14 @@ const initialTasks: Task[] = [
     description: '创作并提交一篇原创内容',
     reward: 150,
     status: 'pending' as TaskStatus,
-    category: 'content' as any,
+    category: 'content',
     startDate: new Date('2024-01-04'),
     requirements: ['撰写内容', '提交审核', '等待批准']
   }
 ];
 
 const createTaskStore = () => {
-  const { subscribe, set, update } = writable<TaskState>({
+  const { subscribe, update } = writable<TaskState>({
     tasks: initialTasks,
     isLoading: false,
     error: null,
@@ -74,7 +74,8 @@ const createTaskStore = () => {
         // const response = await fetch('/api/tasks');
         // const tasks = await response.json();
         update(state => ({ ...state, tasks: initialTasks, isLoading: false }));
-      } catch (error) {
+      } catch (err) {
+        console.error('加载任务失败:', err);
         update(state => ({ 
           ...state, 
           isLoading: false, 
@@ -109,7 +110,7 @@ const createTaskStore = () => {
         }));
         return true;
       } catch (error) {
-        update(state => ({ ...state, isLoading: false, error: '领取奖励失败' }));
+        update(state => ({ ...state, isLoading: false, error: `领取奖励失败: ${error instanceof Error ? error.message : String(error)}` }));
         return false;
       }
     },
