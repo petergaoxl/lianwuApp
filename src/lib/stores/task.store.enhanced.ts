@@ -1,4 +1,4 @@
-// src/lib/stores/task.store.ts
+// src/lib/stores/task.store.ts (增强版)
 
 import { writable, derived } from 'svelte/store';
 import type { Task, TaskStatus, UserTaskStats } from '$lib/types/task.types';
@@ -127,6 +127,7 @@ function createTaskStore() {
           error: null
         }));
 
+        // 重新计算统计
         this.recalculateStats();
       } catch (error: any) {
         const message = error?.message || '完成任务失败';
@@ -152,6 +153,7 @@ function createTaskStore() {
           error: null
         }));
 
+        // 重新计算统计
         this.recalculateStats();
 
         return newBalance;
@@ -179,6 +181,7 @@ function createTaskStore() {
           error: null
         }));
 
+        // 重新计算统计
         this.recalculateStats();
       } catch (error: any) {
         const message = error?.message || '更新任务状态失败';
@@ -204,10 +207,12 @@ function createTaskStore() {
           error: null
         }));
 
+        // 检查是否已完成
         if (task.progress === task.total) {
           await this.completeTask(taskId, userId);
         }
 
+        // 重新计算统计
         this.recalculateStats();
       } catch (error: any) {
         const message = error?.message || '更新任务进度失败';
@@ -227,13 +232,19 @@ function createTaskStore() {
       try {
         const submission = await taskService.submitTask(taskId, userId, proof);
         
-        update((state) => ({
-          ...state,
-          tasks: state.tasks.map((t) =>
-            t.id === taskId ? { ...t, status: 'pending' as TaskStatus } : t
-          ),
-          error: null
-        }));
+        // 更新任务状态为待审核
+        const currentState = get(this);
+        const task = currentState.tasks.find((t) => t.id === taskId);
+        
+        if (task) {
+          update((state) => ({
+            ...state,
+            tasks: state.tasks.map((t) =>
+              t.id === taskId ? { ...t, status: 'pending' } : t
+            ),
+            error: null
+          }));
+        }
 
         return submission;
       } catch (error: any) {
@@ -342,4 +353,12 @@ export function createCategoryFilter(category: string) {
     if (!Array.isArray($tasks)) return [];
     return $tasks.filter((t) => t.category === category);
   });
+}
+
+// 辅助函数获取当前状态（用于需要立即访问的地方）
+function get(store: any) {
+  let value: any;
+  const unsubscribe = store.subscribe(v => value = v);
+  unsubscribe();
+  return value;
 }
