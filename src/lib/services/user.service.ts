@@ -1,143 +1,104 @@
 // src/lib/services/user.service.ts
-import { supabase } from './supabase.service';
-import type { User } from '$lib/stores/auth.store';
-import type { constants } from 'http2';
+import { supabase } from '$lib/supabaseClient';
+import type { Web3AuthLoginResult } from '$lib/services/web3auth.service';
 
-export interface UserRecord {
-	id?: string;
-	wallet_address: string;
-	email?: string;
-	name?: string;
-	profile_image?: string;
-	balance: string;
-	login_method: string;
-	last_login: string;
-	created_at?: string;
-	updated_at?: string;
+// 和我们 auth.store.ts 里一致
+export type LoginMethod = 'google' | 'discord' | 'metamask';
+
+export type AppUser = {
+  address: string;
+  email?: string | null;
+  name?: string | null;
+  avatarUrl?: string | null;
+  loginMethod: LoginMethod;
+  oauthProvider?: string | null;
+};
+
+/** 根据 Web3Auth 的 userInfo 推断社交登录具体是 Google 还是 Discord */
+function detectLoginMethodFromUserInfo(userInfo: any): LoginMethod {
+  const v = `${userInfo?.verifier || userInfo?.type || ''}`.toLowerCase();
+
+  if (v.includes('discord')) return 'discord';
+  if (v.includes('google')) return 'google';
+
+  // 默认当成 google（反正都是走 Web3Auth 社交登录）
+  return 'google';
 }
 
-class UserService {
-	/**
-	 * 保存或更新用户信息到数据库
-	 */
-	async saveUser(user: User): Promise<{ success: boolean; error?: string }> {
-		try {
-			const userRecord: UserRecord = {
-				wallet_address: user.address.toLowerCase(),
-				email: user.email || null,
-				name: user.name || null,
-				profile_image: user.profileImage || null,
-				balance: user.balance || '0',
-				login_method: user.loginMethod || 'unknown',
-				last_login: new Date().toISOString()
-			};
+/** 把 Web3Auth 的登录结果写入 users 表，并返回 AppUser */
+export async function upsertUserFromWeb3Auth(
+  loginResult: Web3AuthLoginResult
+): Promise<AppUser> {
+  const info = loginResult.userInfo as any;
 
-			// 先检查用户是否已存在
-			const { data: existingUser, error: fetchError } = await supabase
-				.from('users')
-				.select('*')
-				.eq('wallet_address', userRecord.wallet_address)
-				.single();
+  console.log('🔍 Web3Auth userInfo = ', info);
 
-			if (fetchError && fetchError.code !== 'PGRST116') {
-				// PGRST116 表示没有找到记录，这是正常的
-				console.error('查询用户失败:', fetchError);
-				throw fetchError;
-			}
+  const detectedMethod = detectLoginMethodFromUserInfo(info);
 
-			if (existingUser) {
-				// 更新现有用户
-				const { error: updateError } = await supabase
-					.from('users')
-					.update({
-						email: userRecord.email,
-						name: userRecord.name,
-						profile_image: userRecord.profile_image,
-						balance: userRecord.balance,
-						login_method: userRecord.login_method,
-						last_login: userRecord.last_login,
-						updated_at: new Date().toISOString()
-					})
-					.eq('wallet_address', userRecord.wallet_address);
+  const email = info?.email ?? null;
+  const name = info?.name ?? info?.userName ?? null;
+  const avatarUrl = info?.profileImage ?? info?.picture ?? null;
+  const oauthProvider = (info?.verifier || info?.type || null) as string | null;
 
-				if (updateError) {
-					console.error('更新用户失败:', updateError);
-					throw updateError;
-				}
+  const payload = {
+    wallet_address: loginResult.address,
+    login_method: detectedMethod,
+    oauth_provider: oauthProvider,
+    email,
+    name,
+    avatar_url: avatarUrl,
+  };
 
-				console.log('✅ 用户信息已更新:', userRecord.wallet_address);
-			} else {
-				// 创建新用户
-				const { error: insertError } = await supabase.from('users').insert([userRecord]);
+  console.log('📝 准备写入 users 表: ', payload);
 
-				if (insertError) {
-					console.error('创建用户失败:', insertError);
-					throw insertError;
-				}
+  const { data, error } = await supabase
+    .from('users')
+    .upsert(payload, { onConflict: 'wallet_address' })
+    .select()
+    .single();
 
-				console.log('✅ 新用户已创建:', userRecord.wallet_address);
-			}
+  if (error) {
+    console.error('❌ 保存用户到数据库失败: ', error);
+    throw error;
+  }
 
-			return { success: true };
-		} catch (error) {
-			console.error('保存用户到数据库失败:', error);
-			// 使用类型保护来安全地访问 message 属性
-			const errorMessage = '保存用户信息失败'; // 默认错误消息
-			return {
-				success: false,
-				error: errorMessage || '保存用户信息失败'
-			};
-		}
-	}
-
-	/**
-	 * 根据钱包地址获取用户信息
-	 */
-	async getUserByAddress(address: string): Promise<UserRecord | null> {
-		try {
-			const { data, error } = await supabase
-				.from('users')
-				.select('*')
-				.eq('wallet_address', address.toLowerCase())
-				.single();
-
-			if (error) {
-				if (error.code === 'PGRST116') {
-					// 用户不存在
-					return null;
-				}
-				throw error;
-			}
-
-			return data;
-		} catch (error) {
-			console.error('获取用户信息失败:', error);
-			return null;
-		}
-	}
-
-	/**
-	 * 更新用户余额
-	 */
-	async updateBalance(address: string, balance: string): Promise<boolean> {
-		try {
-			const { error } = await supabase
-				.from('users')
-				.update({
-					balance,
-					updated_at: new Date().toISOString()
-				})
-				.eq('wallet_address', address.toLowerCase());
-
-			if (error) throw error;
-
-			console.log('✅ 余额已更新:', balance, 'ETH');
-			return true;
-		} catch (error) {
-			console.error('更新余额失败:', error);
-			return false;
-		}
-	}
+  return {
+    address: loginResult.address,
+    email,
+    name,
+    avatarUrl,
+    loginMethod: detectedMethod,
+    oauthProvider,
+  };
 }
 
-export const userService = new UserService();
+/** 只用 MetaMask 地址写入 users（没有 userInfo） */
+export async function upsertUserFromMetaMask(address: string): Promise<AppUser> {
+  const payload = {
+    wallet_address: address,
+    login_method: 'metamask' as const,
+    oauth_provider: 'metamask',
+  };
+
+  console.log('📝 准备写入 users 表( MetaMask ): ', payload);
+
+  const { data, error } = await supabase
+    .from('users')
+    .upsert(payload, { onConflict: 'wallet_address' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ 保存 MetaMask 用户到数据库失败: ', error);
+    throw error;
+  }
+
+  return {
+    address,
+    loginMethod: 'metamask',
+    email: data?.email ?? null,
+    name: data?.name ?? null,
+    avatarUrl: data?.avatar_url ?? null,
+    oauthProvider: data?.oauth_provider ?? 'metamask',
+  };
+}
