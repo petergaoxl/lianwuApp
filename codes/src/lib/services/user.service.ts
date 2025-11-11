@@ -6,12 +6,15 @@ import type { Web3AuthLoginResult } from '$lib/services/web3auth.service';
 export type LoginMethod = 'google' | 'discord' | 'metamask';
 
 export type AppUser = {
+  id?: string;  // ← 添加
   address: string;
   email?: string | null;
   name?: string | null;
   avatarUrl?: string | null;
   loginMethod: LoginMethod;
   oauthProvider?: string | null;
+  balance?: number;  // ← 添加
+  totalEarned?: number;  // ← 添加
 };
 
 /** 根据 Web3Auth 的 userInfo 推断社交登录具体是 Google 还是 Discord */
@@ -47,6 +50,8 @@ export async function upsertUserFromWeb3Auth(
     email,
     name,
     avatar_url: avatarUrl,
+      balance: 0,  // ← 添加
+  total_earned: 0,  // ← 添加
   };
 
   console.log('📝 准备写入 users 表: ', payload);
@@ -62,14 +67,17 @@ export async function upsertUserFromWeb3Auth(
     throw error;
   }
 
-  return {
-    address: loginResult.address,
-    email,
-    name,
-    avatarUrl,
-    loginMethod: detectedMethod,
-    oauthProvider,
-  };
+return {
+  id: data?.id,  // ← 添加
+  address: loginResult.address,
+  email,
+  name,
+  avatarUrl,
+  loginMethod: detectedMethod,
+  oauthProvider,
+  balance: data?.balance ?? 0,  // ← 添加
+  totalEarned: data?.total_earned ?? 0,  // ← 添加
+};
 }
 
 /** 只用 MetaMask 地址写入 users（没有 userInfo） */
@@ -102,3 +110,5 @@ export async function upsertUserFromMetaMask(address: string): Promise<AppUser> 
     oauthProvider: data?.oauth_provider ?? 'metamask',
   };
 }
+
+

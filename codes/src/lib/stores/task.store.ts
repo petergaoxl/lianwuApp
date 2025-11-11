@@ -1,100 +1,345 @@
-import { writable } from 'svelte/store';
-import type { Task, TaskStatus } from '$lib/types/task.types';
+// src/lib/stores/task.store.ts
+
+import { writable, derived } from 'svelte/store';
+import type { Task, TaskStatus, UserTaskStats } from '$lib/types/task.types';
+import * as taskService from '$lib/services/task.service';
 
 interface TaskState {
   tasks: Task[];
+  stats: UserTaskStats | null;
   isLoading: boolean;
   error: string | null;
+  lastUpdated: Date | null;
 }
 
-const initialTasks: Task[] = [
-  {
-    id: '1',
-    title: '完成首次任务提交',
-    description: '提交你的第一个任务，体验平台功能',
-    reward: 10,
-    status: 'active',
-    category: 'onboarding',
-    progress: 0,
-    total: 1,
-    startDate: new Date(),
-    endDate: undefined
-  },
-  {
-    id: '2',
-    title: '关注项目官方 X 账号',
-    description: '在 X 上关注官方账号，获取最新任务更新',
-    reward: 5,
-    status: 'active',
-    category: 'social',
-    progress: 0,
-    total: 1,
-    startDate: new Date(),
-    endDate: undefined
-  },
-  {
-    id: '3',
-    title: '完成每日签到',
-    description: '每日签到可持续领取奖励',
-    reward: 2,
-    status: 'pending',
-    category: 'daily',
-    progress: 0,
-    total: 1,
-    startDate: new Date(),
-    endDate: undefined
-  }
-];
+const initialState: TaskState = {
+  tasks: [],
+  stats: null,
+  isLoading: false,
+  error: null,
+  lastUpdated: null
+};
 
-const createTaskStore = () => {
-  const { subscribe, update, set } = writable<TaskState>({
-    tasks: initialTasks,
-    isLoading: false,
-    error: null
-  });
+function createTaskStore() {
+  const { subscribe, set, update } = writable<TaskState>(initialState);
 
   return {
     subscribe,
 
-    // 模拟加载任务
-    loadTasks: async () => {
-      set({ tasks: initialTasks, isLoading: false, error: null });
+    // ========== 数据加载 ==========
+    
+    /**
+     * 加载用户任务
+     */
+    async loadUserTasks(userId: string) {
+      update((state) => ({ ...state, isLoading: true, error: null }));
+
+      try {
+        const tasks = await taskService.getUserTasks(userId);
+        const stats = taskService.calculateTaskStats(tasks);
+
+        update((state) => ({
+          ...state,
+          tasks,
+          stats,
+          isLoading: false,
+          lastUpdated: new Date()
+        }));
+      } catch (error: any) {
+        const message = error?.message || '加载任务失败';
+        console.error('❌ 加载任务错误:', error);
+        update((state) => ({
+          ...state,
+          isLoading: false,
+          error: message
+        }));
+      }
     },
 
-    // 更新任务状态
-    updateTaskStatus: (taskId: string, status: TaskStatus) => {
-      update((state) => ({
-        ...state,
-        tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status } : t))
-      }));
+    /**
+     * 加载活跃任务
+     */
+    async loadActiveTasks() {
+      update((state) => ({ ...state, isLoading: true, error: null }));
+
+      try {
+        const tasks = await taskService.getActiveTasks();
+        const stats = taskService.calculateTaskStats(tasks);
+
+        update((state) => ({
+          ...state,
+          tasks,
+          stats,
+          isLoading: false,
+          lastUpdated: new Date()
+        }));
+      } catch (error: any) {
+        const message = error?.message || '加载活跃任务失败';
+        console.error('❌ 加载活跃任务错误:', error);
+        update((state) => ({
+          ...state,
+          isLoading: false,
+          error: message
+        }));
+      }
     },
 
-    // 标记完成
-    completeTask: (taskId: string) => {
-      update((state) => ({
-        ...state,
-        tasks: state.tasks.map((t) =>
-          t.id === taskId ? { ...t, status: 'completed', progress: t.total ?? 1 } : t
-        )
-      }));
+    /**
+     * 按分类加载任务
+     */
+    async loadTasksByCategory(category: string) {
+      update((state) => ({ ...state, isLoading: true, error: null }));
+
+      try {
+        const tasks = await taskService.getTasksByCategory(category);
+        const stats = taskService.calculateTaskStats(tasks);
+
+        update((state) => ({
+          ...state,
+          tasks,
+          stats,
+          isLoading: false,
+          lastUpdated: new Date()
+        }));
+      } catch (error: any) {
+        const message = error?.message || '加载分类任务失败';
+        console.error('❌ 加载分类任务错误:', error);
+        update((state) => ({
+          ...state,
+          isLoading: false,
+          error: message
+        }));
+      }
     },
 
-    // 领取奖励
-    claimReward: (taskId: string) => {
-      update((state) => ({
-        ...state,
-        tasks: state.tasks.map((t) =>
-          t.id === taskId ? { ...t, status: 'claimed' } : t
-        )
-      }));
+    // ========== 任务操作 ==========
+
+    /**
+     * 完成任务
+     */
+    async completeTask(taskId: string, userId: string) {
+      try {
+        const task = await taskService.completeTask(taskId, userId);
+        
+        update((state) => ({
+          ...state,
+          tasks: state.tasks.map((t) => (t.id === taskId ? task : t)),
+          error: null
+        }));
+
+        this.recalculateStats();
+      } catch (error: any) {
+        const message = error?.message || '完成任务失败';
+        console.error('❌ 完成任务错误:', error);
+        update((state) => ({
+          ...state,
+          error: message
+        }));
+        throw error;
+      }
     },
 
-    clearError: () =>
+    /**
+     * 领取奖励
+     */
+    async claimReward(taskId: string, userId: string) {
+      try {
+        const { task, newBalance } = await taskService.claimReward(taskId, userId);
+        
+        update((state) => ({
+          ...state,
+          tasks: state.tasks.map((t) => (t.id === taskId ? task : t)),
+          error: null
+        }));
+
+        this.recalculateStats();
+
+        return newBalance;
+      } catch (error: any) {
+        const message = error?.message || '领取奖励失败';
+        console.error('❌ 领取奖励错误:', error);
+        update((state) => ({
+          ...state,
+          error: message
+        }));
+        throw error;
+      }
+    },
+
+    /**
+     * 更新任务状态
+     */
+    async updateTaskStatus(taskId: string, status: TaskStatus, userId: string) {
+      try {
+        const task = await taskService.updateTaskStatus(taskId, status, userId);
+        
+        update((state) => ({
+          ...state,
+          tasks: state.tasks.map((t) => (t.id === taskId ? task : t)),
+          error: null
+        }));
+
+        this.recalculateStats();
+      } catch (error: any) {
+        const message = error?.message || '更新任务状态失败';
+        console.error('❌ 更新任务状态错误:', error);
+        update((state) => ({
+          ...state,
+          error: message
+        }));
+        throw error;
+      }
+    },
+
+    /**
+     * 更新任务进度
+     */
+    async updateTaskProgress(taskId: string, userId: string, progress: number) {
+      try {
+        const task = await taskService.updateTaskProgress(taskId, userId, progress);
+        
+        update((state) => ({
+          ...state,
+          tasks: state.tasks.map((t) => (t.id === taskId ? task : t)),
+          error: null
+        }));
+
+        if (task.progress === task.total) {
+          await this.completeTask(taskId, userId);
+        }
+
+        this.recalculateStats();
+      } catch (error: any) {
+        const message = error?.message || '更新任务进度失败';
+        console.error('❌ 更新任务进度错误:', error);
+        update((state) => ({
+          ...state,
+          error: message
+        }));
+        throw error;
+      }
+    },
+
+    /**
+     * 提交任务
+     */
+    async submitTask(taskId: string, userId: string, proof?: string) {
+      try {
+        const submission = await taskService.submitTask(taskId, userId, proof);
+        
+        update((state) => ({
+          ...state,
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, status: 'pending' as TaskStatus } : t
+          ),
+          error: null
+        }));
+
+        return submission;
+      } catch (error: any) {
+        const message = error?.message || '提交任务失败';
+        console.error('❌ 提交任务错误:', error);
+        update((state) => ({
+          ...state,
+          error: message
+        }));
+        throw error;
+      }
+    },
+
+    // ========== 辅助方法 ==========
+
+    /**
+     * 重新计算统计信息
+     */
+    recalculateStats() {
+      update((state) => {
+        const stats = taskService.calculateTaskStats(state.tasks);
+        return {
+          ...state,
+          stats
+        };
+      });
+    },
+
+    /**
+     * 清除错误
+     */
+    clearError() {
       update((state) => ({
         ...state,
         error: null
-      }))
+      }));
+    },
+
+    /**
+     * 重置存储
+     */
+    reset() {
+      set(initialState);
+    }
   };
-};
+}
 
 export const taskStore = createTaskStore();
+
+// ========== 衍生存储 ==========
+
+/**
+ * 统计信息存储
+ */
+export const taskStats = derived(taskStore, ($store) => $store.stats || {
+  totalCompleted: 0,
+  totalEarned: 0,
+  activeCount: 0,
+  completionRate: 0
+});
+
+/**
+ * 任务列表存储
+ */
+export const tasks = derived(taskStore, ($store) => $store.tasks || []);
+
+/**
+ * 加载状态存储
+ */
+export const isLoadingTasks = derived(taskStore, ($store) => $store.isLoading);
+
+/**
+ * 错误信息存储
+ */
+export const taskError = derived(taskStore, ($store) => $store.error);
+
+/**
+ * 已完成任务存储
+ */
+export const completedTasks = derived(tasks, ($tasks) => {
+  if (!Array.isArray($tasks)) return [];
+  return $tasks.filter((t) => t.status === 'completed' || t.status === 'claimed');
+});
+
+/**
+ * 活跃任务存储
+ */
+export const activeTasks = derived(tasks, ($tasks) => {
+  if (!Array.isArray($tasks)) return [];
+  return $tasks.filter((t) => t.status === 'active');
+});
+
+/**
+ * 待审核任务存储
+ */
+export const pendingTasks = derived(tasks, ($tasks) => {
+  if (!Array.isArray($tasks)) return [];
+  return $tasks.filter((t) => t.status === 'pending');
+});
+
+/**
+ * 按分类过滤的任务存储工厂函数
+ */
+export function createCategoryFilter(category: string) {
+  return derived(tasks, ($tasks) => {
+    if (!Array.isArray($tasks)) return [];
+    return $tasks.filter((t) => t.category === category);
+  });
+}
