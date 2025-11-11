@@ -41,16 +41,33 @@ function createAuthStore() {
         let user: AppUser;
 
         if (method === 'Google') {
+          // 👉 双重保险：先尝试清理上一段 Web3Auth 会话
+          try {
+            await logoutWeb3Auth();
+          } catch (e) {
+            console.log('logoutWeb3Auth 忽略错误: ', e);
+          }
+
+          console.log('🟢 authStore: 准备调用 loginWithGoogleWeb3Auth');
           // 1. 调用 Web3Auth 登录（内部弹窗可能选 Google/Discord）
           const loginResult: Web3AuthLoginResult = await loginWithGoogleWeb3Auth();
 
           // 2. 根据 userInfo 推断具体是 google / discord，并写入 DB
           user = await upsertUserFromWeb3Auth(loginResult);
         } else {
+          console.log('🟠 authStore: 准备调用 loginWithMetaMaskDirect');
           // MetaMask 直接连接
           const res = await loginWithMetaMaskDirect();
           user = await upsertUserFromMetaMask(res.address);
         }
+
+        // 登陆完成的统一日志，方便你对比地址 & 登录方式
+        console.log(
+          '✅ 登录完成: method =',
+          user.loginMethod,
+          'address =',
+          user.address
+        );
 
         set({ user, isLoading: false, error: null });
         return user;
@@ -64,7 +81,8 @@ function createAuthStore() {
 
     /** 登出：如果是 Web3Auth（google/discord），调用 Web3Auth logout；MetaMask 只清本地状态 */
     async logout() {
-      let currentUser: AppUser | null;
+      let currentUser: AppUser | null = null;
+
       update((s) => {
         currentUser = s.user;
         return { ...s, isLoading: true, error: null };
@@ -86,5 +104,5 @@ function createAuthStore() {
 }
 
 export const authStore = createAuthStore();
-export type User = AppUser;           // 方便你在别处 import type User
+export type User = AppUser;
 export type { LoginMethod } from '$lib/services/user.service';

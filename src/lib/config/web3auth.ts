@@ -40,4 +40,4 @@ export const TAIKO_HOODI_CONFIG = {
 };
 
 // 兼容老代码
-export const TAIKO_HOOLIGAN_CONFIG = TAIKO_HOODI_CONFIG;
+export const HOODI = TAIKO_HOODI_CONFIG;

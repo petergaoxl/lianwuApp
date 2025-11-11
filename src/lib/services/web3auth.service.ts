@@ -60,14 +60,26 @@ async function buildResult(provider: any): Promise<Web3AuthLoginResult> {
   return { provider, ethersProvider, signer, address, userInfo };
 }
 
-/** ✅ Google：通过 Web3Auth 登录（会弹 Web3Auth 自带的 modal） */
+/** ✅ 社交登录：通过 Web3Auth 登录（每次都强制重新选择社交账号） */
 export async function loginWithGoogleWeb3Auth(): Promise<Web3AuthLoginResult> {
+  console.log("🟢 进入 loginWithGoogleWeb3Auth");
+
   const instance = await initWeb3Auth();
 
-  console.log("开始 Google/Web3Auth 登录...");
-  const provider = await instance.connect(); // 在 Web3Auth 的弹窗里选 Google
+  // 关键：每次社交登录前都清掉上一次的会话，否则 Web3Auth 会直接复用上次的登录
+  try {
+    console.log("🔁 尝试清理上一次 Web3Auth 会话...");
+    await instance.logout();
+    console.log("✅ 上一次 Web3Auth 会话已清理");
+  } catch (e) {
+    console.log("ℹ️ Web3Auth logout 失败或本来就未登录，可忽略：", e);
+  }
 
-  console.log("Web3Auth 登录成功，获取账户信息...");
+  console.log("开始 Web3Auth 社交登录（将弹出 Google / Discord / Twitter 等选项）...");
+  // 不传 loginProvider，让 Web3Auth 自己弹出完整的社交登录列表
+  const provider = await instance.connect();
+
+  console.log("Web3Auth 登录成功，准备获取账户信息...");
   return buildResult(provider);
 }
 

@@ -1,5 +1,5 @@
 // src/lib/utils/network.utils.ts
-import { TAIKO_HOOLIGAN_CONFIG } from '$lib/config/web3auth';
+import { TAIKO_HOODI_CONFIG } from '$lib/config/web3auth';
 
 export function isMetaMaskInstalled(): boolean {
   return typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
@@ -24,9 +24,9 @@ export async function switchToTaikoNetwork(): Promise<boolean> {
   try {
     await window.ethereum!.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: TAIKO_HOOLIGAN_CONFIG.chainIdHex }]
+      params: [{ chainId: TAIKO_HOODI_CONFIG.chainIdHex }]
     });
-    console.log('✅ 已切换到 Taiko Hooligan 测试网');
+    console.log('✅ 已切换到 Taiko Hoodi 测试网');
     return true;
   } catch (switchError: any) {
     if (switchError.code === 4902) {
@@ -34,17 +34,17 @@ export async function switchToTaikoNetwork(): Promise<boolean> {
         await window.ethereum!.request({
           method: 'wallet_addEthereumChain',
           params: [{
-            chainId: TAIKO_HOOLIGAN_CONFIG.chainIdHex,
-            chainName: TAIKO_HOOLIGAN_CONFIG.name,
-            nativeCurrency: TAIKO_HOOLIGAN_CONFIG.nativeCurrency,
-            rpcUrls: TAIKO_HOOLIGAN_CONFIG.rpcUrls,
-            blockExplorerUrls: TAIKO_HOOLIGAN_CONFIG.blockExplorerUrls
+            chainId: TAIKO_HOODI_CONFIG.chainIdHex,
+            chainName: TAIKO_HOODI_CONFIG.name,
+            nativeCurrency: TAIKO_HOODI_CONFIG.nativeCurrency,
+            rpcUrls: TAIKO_HOODI_CONFIG.rpcUrls,
+            blockExplorerUrls: TAIKO_HOODI_CONFIG.blockExplorerUrls
           }]
         });
-        console.log('✅ 已添加 Taiko Hooligan 测试网');
+        console.log('✅ 已添加 Taiko Hoodi 测试网');
         return true;
       } catch (addError) {
-        throw new Error('无法添加 Taiko Hooligan 测试网');
+        throw new Error('无法添加 Taiko Hoodi 测试网');
       }
     } else {
       throw new Error('切换网络失败');
@@ -64,7 +64,7 @@ export function getNetworkName(chainId: string): string {
   const networks: Record<number, string> = {
     1: 'Ethereum Mainnet',
     11155111: 'Sepolia',
-    167013: 'Taiko Hooligan'
+    167013: 'Taiko Hoodi'
   };
   return networks[chainIdNum] || `Unknown (${chainIdNum})`;
 }
