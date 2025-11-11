@@ -1,164 +1,118 @@
 // src/lib/services/web3auth.service.ts
-import { Web3Auth } from '@web3auth/modal';
-import { EthereumPrivateKeyProvider } from '@web3auth/ethereum-provider';
-import { WALLET_ADAPTERS } from '@web3auth/base';
-import { ethers } from 'ethers';
-import { getWeb3AuthConfig, TAIKO_HOOLIGAN_CONFIG } from '$lib/config/web3auth';
-import type { User } from '$lib/stores/auth.store';
+import { Web3Auth } from "@web3auth/modal";
+import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
+import { BrowserProvider } from "ethers";
+import { getWeb3AuthConfig } from "$lib/config/web3auth";
 
-class Web3AuthService {
-  private web3auth: Web3Auth | null = null;
-  private provider: any = null;
+let web3auth: Web3Auth | null = null;
+let initializing: Promise<Web3Auth> | null = null;
 
-  private isBrowser() {
-    return typeof window !== 'undefined';
-  }
+export type Web3AuthLoginResult = {
+  provider: any;
+  ethersProvider: BrowserProvider;
+  signer: any;
+  address: string;
+  userInfo: Record<string, any> | null;
+};
 
-  private async initWeb3Auth() {
-    if (this.web3auth) return this.web3auth;
-    if (!this.isBrowser()) throw new Error('仅支持浏览器环境');
+/** 初始化 Web3Auth（单例） */
+async function initWeb3Auth(): Promise<Web3Auth> {
+  if (web3auth) return web3auth;
+  if (initializing) return initializing;
 
-    const cfg = getWeb3AuthConfig();
-    const privateKeyProvider = new EthereumPrivateKeyProvider({
-      config: { chainConfig: cfg.chainConfig }
+  const { clientId, web3AuthNetwork, chainConfig } = getWeb3AuthConfig();
+
+  const privateKeyProvider = new EthereumPrivateKeyProvider({
+    config: { chainConfig },
+  });
+
+  const instance = new Web3Auth({
+    clientId,
+    web3AuthNetwork,
+    privateKeyProvider,
+  });
+
+  initializing = instance
+    .initModal()
+    .then(() => {
+      web3auth = instance;
+      console.log("✅ Web3Auth 初始化完成");
+      return instance;
+    })
+    .finally(() => {
+      initializing = null;
     });
 
-    this.web3auth = new Web3Auth({
-      clientId: cfg.clientId,
-      web3AuthNetwork: cfg.web3AuthNetwork as any,
-      privateKeyProvider,
-      chainConfig: cfg.chainConfig
-    });
+  return initializing;
+}
 
-    await this.web3auth.initModal({
-      modalConfig: {
-        [WALLET_ADAPTERS.OPENLOGIN]: {
-          label: 'openlogin',
-          loginMethods: { google: { name: 'google', showOnModal: true } }
-        },
-        [WALLET_ADAPTERS.METAMASK]: {
-          label: 'metamask',
-          showOnModal: true
-        }
-      }
-    });
-
-    return this.web3auth;
+/** 共用的结果封装（给 Web3Auth 用） */
+async function buildResult(provider: any): Promise<Web3AuthLoginResult> {
+  if (!provider) {
+    throw new Error("Web3Auth 未返回 provider");
   }
 
-  private async switchToTaikoNetwork() {
-    if (!this.isBrowser() || !window.ethereum) return;
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: TAIKO_HOOLIGAN_CONFIG.chainIdHex }]
-      });
-    } catch (switchError: any) {
-      if (switchError.code === 4902) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: TAIKO_HOOLIGAN_CONFIG.chainIdHex,
-            chainName: TAIKO_HOOLIGAN_CONFIG.name,
-            nativeCurrency: TAIKO_HOOLIGAN_CONFIG.nativeCurrency,
-            rpcUrls: TAIKO_HOOLIGAN_CONFIG.rpcUrls,
-            blockExplorerUrls: TAIKO_HOOLIGAN_CONFIG.blockExplorerUrls
-          }]
-        });
-      }
-    }
+  const ethersProvider = new BrowserProvider(provider as any);
+  const signer = await ethersProvider.getSigner();
+  const address = await signer.getAddress();
+  const userInfo = web3auth ? await web3auth.getUserInfo() : null;
+
+  return { provider, ethersProvider, signer, address, userInfo };
+}
+
+/** ✅ Google：通过 Web3Auth 登录（会弹 Web3Auth 自带的 modal） */
+export async function loginWithGoogleWeb3Auth(): Promise<Web3AuthLoginResult> {
+  const instance = await initWeb3Auth();
+
+  console.log("开始 Google/Web3Auth 登录...");
+  const provider = await instance.connect(); // 在 Web3Auth 的弹窗里选 Google
+
+  console.log("Web3Auth 登录成功，获取账户信息...");
+  return buildResult(provider);
+}
+
+/** ✅ MetaMask：直接连接浏览器插件，不经过 Web3Auth */
+export async function loginWithMetaMaskDirect(): Promise<{
+  ethersProvider: BrowserProvider;
+  signer: any;
+  address: string;
+}> {
+  if (typeof window === "undefined" || !(window as any).ethereum) {
+    throw new Error("未检测到 MetaMask，请先安装浏览器扩展");
   }
 
-  async loginWithGoogle(): Promise<User> {
-    const web3auth = await this.initWeb3Auth();
-    this.provider = await web3auth.connectTo(WALLET_ADAPTERS.OPENLOGIN, {
-      loginProvider: 'google'
-    });
-    if (!this.provider) throw new Error('Google 登录失败');
-    return await this.getUserInfo();
+  const ethereum = (window as any).ethereum;
+
+  // 请求授权
+  await ethereum.request({ method: "eth_requestAccounts" });
+
+  const ethersProvider = new BrowserProvider(ethereum);
+  const signer = await ethersProvider.getSigner();
+  const address = await signer.getAddress();
+
+  console.log("MetaMask 连接成功：", address);
+
+  return { ethersProvider, signer, address };
+}
+
+/** ✅ Web3Auth 登出（清理 Web3Auth 会话） */
+export async function logoutWeb3Auth() {
+  if (!web3auth) {
+    console.log("Web3Auth 实例不存在，跳过 logout");
+    return;
   }
-
-  async loginWithMetaMask(): Promise<User> {
-    if (!this.isBrowser() || !window.ethereum) {
-      throw new Error('请先安装 MetaMask 钱包');
-    }
-
-    await this.switchToTaikoNetwork();
-    const accounts = await window.ethereum.request({
-      method: 'eth_requestAccounts'
-    }) as string[];
-
-    if (!accounts || accounts.length === 0) {
-      throw new Error('未获取到账户');
-    }
-
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-
-    let balance = '0';
-    try {
-      const balanceBN = await provider.getBalance(address);
-      balance = ethers.formatEther(balanceBN);
-    } catch (e) {
-      console.warn('获取余额失败:', e);
-    }
-
-    return { address, balance, loginMethod: 'metamask' };
-  }
-
-  async connect(method: 'google' | 'metamask'): Promise<User> {
-    if (method === 'google') {
-      return await this.loginWithGoogle();
-    } else {
-      return await this.loginWithMetaMask();
-    }
-  }
-
-  private async getUserInfo(): Promise<User> {
-    if (!this.provider) throw new Error('未连接 provider');
-
-    const ethersProvider = new ethers.BrowserProvider(this.provider);
-    const signer = await ethersProvider.getSigner();
-    const address = await signer.getAddress();
-
-    let balance = '0';
-    try {
-      const balanceBN = await ethersProvider.getBalance(address);
-      balance = ethers.formatEther(balanceBN);
-    } catch (e) {
-      console.warn('获取余额失败:', e);
-    }
-
-    let userInfo: any = {};
-    if (this.web3auth) {
-      try {
-        userInfo = await this.web3auth.getUserInfo();
-      } catch (e) {
-        console.warn('获取用户信息失败:', e);
-      }
-    }
-
-    return {
-      address,
-      balance,
-      email: userInfo?.email,
-      name: userInfo?.name,
-      profileImage: userInfo?.profileImage,
-      loginMethod: userInfo?.email ? 'google' : 'web3auth'
-    };
-  }
-
-  async logout() {
-    try {
-      if (this.web3auth && this.web3auth.connected) {
-        await this.web3auth.logout();
-      }
-      this.provider = null;
-    } catch (error) {
-      console.error('登出失败:', error);
-    }
+  try {
+    await web3auth.logout();
+    console.log("✅ Web3Auth 已登出");
+  } catch (e) {
+    console.error("Web3Auth logout 失败", e);
   }
 }
 
-export const web3AuthService = new Web3AuthService();
+/** 兼容以前的对象导出（如果还有地方在用） */
+export const web3AuthService = {
+  initWeb3Auth,
+  loginWithGoogleWeb3Auth,
+  loginWithMetaMaskDirect,
+  logoutWeb3Auth,
+};

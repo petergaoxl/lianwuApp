@@ -1,43 +1,55 @@
 <script lang="ts">
-  import { X } from 'lucide-svelte';
-  import { authStore, type User } from '$lib/stores/auth.store';
+  import { X, CheckCircle } from "lucide-svelte";
+  import { authStore, type User } from "$lib/stores/auth.store";
 
   export let isOpen = false;
   export let onClose: () => void;
 
+  let showSuccess = false;
+  let successMessage = "";
+
   const loginMethods = [
-    { name: 'Google', icon: '🔍', color: 'from-red-500 to-yellow-500' },
-    { name: 'MetaMask', icon: '🦊', color: 'from-orange-400 to-orange-600' }
+    { name: "Google", icon: "🔍", color: "from-red-500 to-yellow-500" },
+    { name: "MetaMask", icon: "🦊", color: "from-orange-400 to-orange-600" },
   ];
 
-  async function handleLogin(methodName: string) {
+  async function handleLogin(methodName: "Google" | "MetaMask") {
     authStore.clearError();
+    showSuccess = false;
+
     let user: User | null = null;
 
-    if (methodName === 'Google') {
-      user = await authStore.loginWithWeb3Auth('google');
-    } else if (methodName === 'MetaMask') {
-      user = await authStore.loginWithWeb3Auth('metamask');
+    if (methodName === "Google") {
+      user = await authStore.loginWithWeb3Auth("Google");
+    } else if (methodName === "MetaMask") {
+      user = await authStore.loginWithWeb3Auth("metamask");
     }
 
     if (user) {
-      setTimeout(() => onClose(), 500);
+      showSuccess = true;
+      const shortAddress = `${user.address.slice(0, 6)}...${user.address.slice(-4)}`;
+      successMessage = `${methodName} 登录成功！地址: ${shortAddress}`;
+
+      setTimeout(() => {
+        showSuccess = false;
+        onClose();
+      }, 1500);
     }
   }
 
   function handleBackdropClick(event: MouseEvent) {
-    if (event.target === event.currentTarget) onClose();
+    // 注意：authStore 是一个 store，$authStore 里有 isLoading
+    if (event.target === event.currentTarget && !$authStore.isLoading) {
+      onClose();
+    }
   }
 </script>
-
-<!-- 保留原 UI -->
-
 
 {#if isOpen}
   <div
     class="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm duration-200"
     on:click={handleBackdropClick}
-    on:keydown={(e) => e.key === 'Escape' && onClose()}
+    on:keydown={(e) => e.key === "Escape" && onClose()}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
@@ -61,12 +73,12 @@
         </button>
       </div>
 
-      <!-- 登录方式网格 -->
+      <!-- 登录方式 -->
       <div class="mb-6 grid grid-cols-2 gap-4">
         {#each loginMethods as method}
           <button
             class={`flex w-full items-center justify-between rounded-xl bg-gradient-to-r p-4 ${method.color} transition hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed`}
-            on:click={() => handleLogin(method.name)}
+            on:click={() => handleLogin(method.name as "Google" | "MetaMask")}
             disabled={$authStore.isLoading}
           >
             <div class="flex items-center gap-3">
@@ -80,16 +92,32 @@
         {/each}
       </div>
 
-      <!-- 取消按钮 -->
+      <!-- 取消 -->
       <button
         on:click={onClose}
-        class="w-full rounded-xl border border-white/10 bg-white/5 py-3 transition-all hover:bg-white/10"
+        class="w-full rounded-xl border border-white/10 bg-white/5 py-3 transition-all hover:bg-white/10 disabled:opacity-50"
+        disabled={$authStore.isLoading}
         tabindex="0"
       >
         取消
       </button>
 
-      <!-- 全屏加载遮罩 -->
+      <!-- 成功提示 -->
+      {#if showSuccess}
+        <div
+          class="absolute inset-0 flex items-center justify-center rounded-3xl bg-slate-900/95 backdrop-blur-sm"
+        >
+          <div class="text-center px-8">
+            <div class="mx-auto mb-4 h-16 w-16 flex items-center justify-center rounded-full bg-green-500/20">
+              <CheckCircle class="h-10 w-10 text-green-400" />
+            </div>
+            <p class="text-xl font-bold text-green-400 mb-2">登录成功！</p>
+            <p class="text-sm text-gray-300">{successMessage}</p>
+          </div>
+        </div>
+      {/if}
+
+      <!-- 加载遮罩 -->
       {#if $authStore.isLoading}
         <div
           class="absolute inset-0 flex items-center justify-center rounded-3xl bg-slate-900/80 backdrop-blur-sm"
@@ -98,17 +126,17 @@
             <div
               class="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"
             ></div>
-            <p class="text-gray-300">正在连接...</p>
+            <p class="text-gray-300">正在连接钱包...</p>
+            <p class="text-xs text-gray-500 mt-2">请在弹出的窗口中完成登录</p>
           </div>
         </div>
       {/if}
 
       <!-- 错误提示 -->
       {#if $authStore.error}
-        <div
-          class="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400"
-        >
-          {$authStore.error}
+        <div class="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+          <p class="font-semibold mb-1">❌ 登录失败</p>
+          <p>{$authStore.error}</p>
         </div>
       {/if}
     </div>

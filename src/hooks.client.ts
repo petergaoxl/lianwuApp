@@ -2,31 +2,6 @@
 import { Buffer } from 'buffer';
 import process from 'process';
 
-// 只在浏览器端挂 polyfill
-if (typeof window !== 'undefined') {
-  // polyfill Buffer
-  // @ts-expect-error or longer
-  if (!window.Buffer) {
-    // @ts-expect-error or longer
-    window.Buffer = Buffer;
-  }
-
-  // polyfill process
-  // @ts-expect-error or longer
-  if (!window.process) {
-    // @ts-expect-error or longer
-    window.process = process;
-  }
-
-  // polyfill global
-  // 有些 Node 包会用 global，这里把它指向 window
-  // @ts-expect-error or longer
-  if (!window.global) {
-    // @ts-expect-error or longer
-    window.global = window;
-  }
-}
-
 // 再给 globalThis 也挂一份，防止有库用 globalThis.Buffer / globalThis.process / globalThis.global
 // 声明 globalThis 对象拥有可选的 Node.js 属性
 declare global {
@@ -54,3 +29,30 @@ if (typeof globalThis !== 'undefined') {
     g.global = g;
   }
 }
+
+
+// 只在浏览器端挂 polyfill
+if (typeof window !== 'undefined') {
+  // polyfill Buffer
+  // @ts-expect-error or longer
+  if (!window.Buffer) {
+    // @ts-expect-error or longer
+    window.Buffer = Buffer;
+  }
+
+  // polyfill process
+  // @ts-expect-error or longer
+  if (!window.process) {
+    // @ts-expect-error or longer
+    window.process = process;
+  }
+
+  // polyfill global
+  // 有些 Node 包会用 global，这里把它指向 window
+  // @ts-expect-error or longer
+  if (!window.global) {
+    // @ts-expect-error or longer
+    window.global = window;
+  }
+}
+
