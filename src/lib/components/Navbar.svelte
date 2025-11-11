@@ -3,7 +3,7 @@
 	import { Wallet, Trophy, Zap, LogOut, Network, CheckCircle } from 'lucide-svelte';
 	import { authStore } from '$lib/stores/auth.store';
 	import { onChainChanged, getNetworkName } from '$lib/utils/network.utils';
-	import { TAIKO_HOODI_CONFIG as TAIKO_HOOLIGAN_CONFIG } from '$lib/config/web3auth';
+	import { TAIKO_HOODI_CONFIG } from '$lib/config/web3auth';
 	import { getTaikoEthBalance } from '$lib/services/balance.service';
 
 	export let onLoginClick: () => void;
@@ -21,11 +21,11 @@
 		if (typeof window !== 'undefined' && (window as any).ethereum) {
 			const chainId = (await (window as any).ethereum.request({ method: 'eth_chainId' })) as string;
 			currentNetwork = getNetworkName(chainId);
-			isCorrectNetwork = chainId === TAIKO_HOOLIGAN_CONFIG.chainIdHex;
+			isCorrectNetwork = chainId === TAIKO_HOODI_CONFIG.chainIdHex;
 
 			unsubscribeChainChanged = onChainChanged((chainId) => {
 				currentNetwork = getNetworkName(chainId);
-				isCorrectNetwork = chainId === TAIKO_HOOLIGAN_CONFIG.chainIdHex;
+				isCorrectNetwork = chainId === TAIKO_HOODI_CONFIG.chainIdHex;
 			});
 		}
 	});
@@ -43,25 +43,26 @@
 
 	let lastAddress = '';
 
-	async function refreshBalance(address: string) {
-		// 防止同一个地址重复触发多次请求
-		if (!address || address === lastAddress) return;
-		lastAddress = address;
+async function refreshBalance(address: string) {
+  if (!address || address === lastAddress) return;
+  lastAddress = address;
 
-		try {
-			const ethStr = await getTaikoEthBalance(address);
-			balance = Number(ethStr); // 也可以保留为字符串按需格式化
-		} catch (e) {
-			console.error('获取 Taiko ETH 余额失败:', e);
-			balance = 0;
-		}
-	}
+  try {
+    const ethNum = await getTaikoEthBalance(address);
+    balance = ethNum;
+  } catch (e) {
+    console.error('获取 Taiko ETH 余额失败:', e);
+    balance = 0;
+  }
+}
+
 
 	async function handleLogout() {
 		if (isLoading) return;
 		await authStore.logout();
 
 		balance = 0;
+        lastAddress = ''; 
 		currentNetwork = 'Taiko Hoodi';
 		isCorrectNetwork = true;
 
@@ -88,7 +89,7 @@
 			<span
 				class="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-2xl font-bold text-transparent"
 			>
-				TaskReward
+				Lianwu
 			</span>
 		</a>
 

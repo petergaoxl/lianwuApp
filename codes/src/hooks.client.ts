@@ -2,6 +2,35 @@
 import { Buffer } from 'buffer';
 import process from 'process';
 
+// 再给 globalThis 也挂一份，防止有库用 globalThis.Buffer / globalThis.process / globalThis.global
+// 声明 globalThis 对象拥有可选的 Node.js 属性
+declare global {
+  interface Window { // 或 globalThis 的接口
+    Buffer?: typeof Buffer;
+    process?: typeof process;
+    global?: typeof globalThis;
+  }
+}
+
+// 现在您的原始代码可以写成这样，而不需要 any：
+if (typeof globalThis !== 'undefined') {
+  // TypeScript 现在知道 globalThis 可能有 Buffer/process 属性
+  const g = globalThis; 
+  
+  if (!g.Buffer) {
+    g.Buffer = Buffer;
+  }
+  
+  if (!g.process) {
+    g.process = process;
+  }
+  
+  if (!g.global) {
+    g.global = g;
+  }
+}
+
+
 // 只在浏览器端挂 polyfill
 if (typeof window !== 'undefined') {
   // polyfill Buffer
@@ -27,17 +56,3 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// 再给 globalThis 也挂一份，防止有库用 globalThis.Buffer / globalThis.process / globalThis.global
-if (typeof globalThis !== 'undefined') {
-  const g: any = globalThis as any;
-
-  if (!g.Buffer) {
-    g.Buffer = Buffer;
-  }
-  if (!g.process) {
-    g.process = process;
-  }
-  if (!g.global) {
-    g.global = g;
-  }
-}

@@ -1,84 +1,108 @@
 // src/lib/stores/auth.store.ts
 import { writable } from 'svelte/store';
-import { web3AuthService } from '$lib/services/web3auth.service';
-import { supabase } from '$lib/services/supabase.service';
+import {
+  loginWithGoogleWeb3Auth,
+  loginWithMetaMaskDirect,
+  logoutWeb3Auth,
+  type Web3AuthLoginResult,
+} from '$lib/services/web3auth.service';
+import {
+  upsertUserFromWeb3Auth,
+  upsertUserFromMetaMask,
+  type AppUser,
+  type LoginMethod,
+} from '$lib/services/user.service';
 
-export interface User {
-  email?: string;
-  name?: string;
-  profileImage?: string;
-  address: string;
-  balance: string;
-}
-
-interface AuthState {
-  user: User | null;
+type AuthState = {
+  user: AppUser | null;
   isLoading: boolean;
-  isInitialized: boolean;
   error: string | null;
-}
+};
 
-const createAuthStore = () => {
-  const { subscribe, update, set } = writable<AuthState>({
+function createAuthStore() {
+  const { subscribe, set, update } = writable<AuthState>({
     user: null,
     isLoading: false,
-    isInitialized: true,
-    error: null
+    error: null,
   });
 
   return {
     subscribe,
 
-    // ✅ 核心登录函数：支持 Google 与 MetaMask
-    loginWithWeb3Auth: async (method: 'google' | 'metamask'): Promise<User | null> => {
-  if (typeof window === 'undefined') return null;
-
-  update((s) => ({ ...s, isLoading: true, error: null }));
-
-  try {
-    const user = await web3AuthService.connect(method);
-
-    if (user) {
-      update((s) => ({
-        ...s,
-        user,
-        isInitialized: true,
-        isLoading: false,
-        error: null
-      }));
-      return user;
-    }
-  } catch (err: any) {
-    console.error('Web3Auth 登录失败:', err);
-    update((s) => ({
-      ...s,
-      isLoading: false,
-      error: err?.message ?? '登录失败，请稍后重试'
-    }));
-  } finally {
-    update((s) => ({ ...s, isLoading: false }));
-  }
-
-  return null;
-},
-
-
-
-    // ✅ 登出函数
-    logout: async () => {
-      await web3AuthService.logout();
-      set({
-        user: null,
-        isLoading: false,
-        isInitialized: true,
-        error: null
-      });
+    clearError() {
+      update((s) => ({ ...s, error: null }));
     },
 
-    // ✅ 错误处理工具函数
-    clearError: () => update((s) => ({ ...s, error: null })),
-    setError: (msg: string) => update((s) => ({ ...s, error: msg }))
+    /** 统一登录入口：参数只是“用户点的是哪个按钮” */
+    async loginWithWeb3Auth(method: 'Google' | 'metamask'): Promise<AppUser | null> {
+      set({ user: null, isLoading: true, error: null });
+
+      try {
+        let user: AppUser;
+
+        if (method === 'Google') {
+          // 👉 双重保险：先尝试清理上一段 Web3Auth 会话
+          try {
+            await logoutWeb3Auth();
+          } catch (e) {
+            console.log('logoutWeb3Auth 忽略错误: ', e);
+          }
+
+          console.log('🟢 authStore: 准备调用 loginWithGoogleWeb3Auth');
+          // 1. 调用 Web3Auth 登录（内部弹窗可能选 Google/Discord）
+          const loginResult: Web3AuthLoginResult = await loginWithGoogleWeb3Auth();
+
+          // 2. 根据 userInfo 推断具体是 google / discord，并写入 DB
+          user = await upsertUserFromWeb3Auth(loginResult);
+        } else {
+          console.log('🟠 authStore: 准备调用 loginWithMetaMaskDirect');
+          // MetaMask 直接连接
+          const res = await loginWithMetaMaskDirect();
+          user = await upsertUserFromMetaMask(res.address);
+        }
+
+        // 登陆完成的统一日志，方便你对比地址 & 登录方式
+        console.log(
+          '✅ 登录完成: method =',
+          user.loginMethod,
+          'address =',
+          user.address
+        );
+
+        set({ user, isLoading: false, error: null });
+        return user;
+      } catch (e: any) {
+        console.error('❌ 登录或写入数据库失败:', e);
+        const msg = e?.message ?? e?.error_description ?? '未知错误';
+        set({ user: null, isLoading: false, error: msg });
+        return null;
+      }
+    },
+
+    /** 登出：如果是 Web3Auth（google/discord），调用 Web3Auth logout；MetaMask 只清本地状态 */
+    async logout() {
+      let currentUser: AppUser | null = null;
+
+      update((s) => {
+        currentUser = s.user;
+        return { ...s, isLoading: true, error: null };
+      });
+
+      try {
+        if (currentUser?.loginMethod === 'google' || currentUser?.loginMethod === 'discord') {
+          await logoutWeb3Auth();
+        }
+
+        set({ user: null, isLoading: false, error: null });
+      } catch (e: any) {
+        console.error('❌ 登出失败:', e);
+        const msg = e?.message ?? '未知错误';
+        set({ user: null, isLoading: false, error: msg });
+      }
+    },
   };
-};
+}
 
 export const authStore = createAuthStore();
+export type User = AppUser;
+export type { LoginMethod } from '$lib/services/user.service';
