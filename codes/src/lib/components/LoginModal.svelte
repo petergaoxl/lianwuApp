@@ -1,28 +1,36 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
-  import { authStore, type User } from '$lib/stores/auth.store';
+  import { authStore } from '$lib/stores/auth.store';
 
   export let isOpen = false;
   export let onClose: () => void;
 
   const loginMethods = [
     { name: 'Google', icon: '🔍', color: 'from-red-500 to-yellow-500' },
-    { name: 'MetaMask', icon: '🦊', color: 'from-orange-400 to-orange-600' }
+    { name: 'MetaMask', icon: '🦊', color: 'from-orange-400 to-orange-600' },
+    { name: 'Email', icon: '📧', color: 'from-gray-500 to-gray-700' }
   ];
 
   async function handleLogin(methodName: string) {
-    authStore.clearError();
-    let user: User | null = null;
+  authStore.clearError();
 
-    if (methodName === 'Google') {
-      user = await authStore.loginWithWeb3Auth('google');
-    } else if (methodName === 'MetaMask') {
-      user = await authStore.loginWithWeb3Auth('metamask');
-    }
+  let user: User | null = null;
 
-    if (user) {
-      setTimeout(() => onClose(), 500);
-    }
+  if (methodName === 'Google') {
+    user = await authStore.loginWithWeb3Auth('google');
+  } else if (methodName === 'MetaMask') {
+    user = await authStore.loginWithWeb3Auth('metamask');
+  } else {
+    authStore.setError(`${methodName} 登录暂未实现，请先使用钱包登录`);
+    return;
+  }
+
+  if (user) {
+    onClose();
+  } else {
+    authStore.setError('登录失败，请稍后重试');
+  }
+
   }
 
   function handleBackdropClick(event: MouseEvent) {

@@ -9,7 +9,6 @@ export interface User {
   profileImage?: string;
   address: string;
   balance: string;
-  loginMethod?: 'google' | 'metamask' | 'web3auth';
 }
 
 interface AuthState {
@@ -30,30 +29,53 @@ const createAuthStore = () => {
   return {
     subscribe,
 
+    // ✅ 核心登录函数：支持 Google 与 MetaMask
     loginWithWeb3Auth: async (method: 'google' | 'metamask'): Promise<User | null> => {
-      if (typeof window === 'undefined') return null;
-      update((s) => ({ ...s, isLoading: true, error: null }));
+  if (typeof window === 'undefined') return null;
 
-      try {
-        const user = await web3AuthService.connect(method);
-        if (user) {
-          update((s) => ({ ...s, user, isInitialized: true, isLoading: false, error: null }));
-          return user;
-        }
-      } catch (err: any) {
-        console.error('登录失败:', err);
-        update((s) => ({ ...s, isLoading: false, error: err?.message ?? '登录失败' }));
-      } finally {
-        update((s) => ({ ...s, isLoading: false }));
-      }
-      return null;
-    },
+  update((s) => ({ ...s, isLoading: true, error: null }));
 
+  try {
+    const user = await web3AuthService.connect(method);
+
+    if (user) {
+      update((s) => ({
+        ...s,
+        user,
+        isInitialized: true,
+        isLoading: false,
+        error: null
+      }));
+      return user;
+    }
+  } catch (err: any) {
+    console.error('Web3Auth 登录失败:', err);
+    update((s) => ({
+      ...s,
+      isLoading: false,
+      error: err?.message ?? '登录失败，请稍后重试'
+    }));
+  } finally {
+    update((s) => ({ ...s, isLoading: false }));
+  }
+
+  return null;
+},
+
+
+
+    // ✅ 登出函数
     logout: async () => {
       await web3AuthService.logout();
-      set({ user: null, isLoading: false, isInitialized: true, error: null });
+      set({
+        user: null,
+        isLoading: false,
+        isInitialized: true,
+        error: null
+      });
     },
 
+    // ✅ 错误处理工具函数
     clearError: () => update((s) => ({ ...s, error: null })),
     setError: (msg: string) => update((s) => ({ ...s, error: msg }))
   };
