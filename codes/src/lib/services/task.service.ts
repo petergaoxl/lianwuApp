@@ -193,7 +193,8 @@ export async function claimReward(taskId: string, userId: string): Promise<{ tas
         type: 'reward',
         amount: taskData.reward,
         task_id: taskId,
-        description: 'Task reward claimed'
+        description: 'Task reward claimed',
+        created_by: userId,
       });
 
     return { task, newBalance };
@@ -219,7 +220,8 @@ export async function submitTask(
         user_id: userId,
         proof: proof || null,
         submitted_at: new Date().toISOString(),
-        status: 'pending'
+        status: 'pending',
+        created_by: userId,
       })
       .select()
       .single();

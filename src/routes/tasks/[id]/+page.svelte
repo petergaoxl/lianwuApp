@@ -7,12 +7,12 @@
   import { taskStore } from '$lib/stores/task.store';
   import { submitScores, getTaskScores, getUserSubmission } from '$lib/services/interactive.service';
   import type { Task } from '$lib/types/task.types';
+  import type { LoginMethod } from '$lib/services/user.service';
 
   export let data;
 
   let task: Task | null = null;
-  let userId = '';  // ← 改为空字符串，稍后通过订阅赋值
-  
+$: userId = $authStore.user?.id || '';  // ✅ 反应式变量  
   // 打分相关状态
   let dimensions = [
     { name: '设计美感', key: 'design' },
@@ -35,7 +35,19 @@
   let statsData: any = null;
   let showStats = false;
 
+  async function handleLoginClick() {
+  try {
+    console.log('🔗 用户点击连接钱包');
+    await authStore.loginWithWeb3Auth('google');
+    console.log('✅ 登录成功');
+  } catch (err) {
+    console.error('❌ 登录失败:', err);
+  }
+}
+
   onMount(async () => {
+    console.log('📍 onMount 触发, userId:', userId);
+    
     // 从路由参数获取任务ID
     if (!data?.task?.id && typeof window !== 'undefined') {
       const taskId = window.location.pathname.split('/').pop();
@@ -52,8 +64,9 @@
 
     task = data.task;
 
-    // 如果用户已登录，检查是否已提交
+    // 👉 关键改进 1：检查用户是否真的登录了
     if (userId) {
+      console.log('✅ 用户已登录, userId:', userId);
       try {
         const submission = await getUserSubmission(task.id, userId);
         if (submission) {
@@ -61,13 +74,17 @@
           if (submission.submission_data?.scores) {
             scores = submission.submission_data.scores;
           }
+          console.log('✅ 找到之前的提交');
         }
       } catch (err) {
-        console.error('检查提交状态失败:', err);
+        console.error('❌ 检查提交状态失败:', err);
+        // 不要中断用户体验，继续加载页面
       }
 
       // 加载统计数据
       await loadStats();
+    } else {
+      console.warn('⚠️ 用户未登录或 userId 不可用');
     }
   });
 
@@ -81,13 +98,26 @@
   }
 
   async function handleSubmit() {
+    console.log('🖱️ 提交按钮被点击');
+    console.log('📊 当前状态:', { userId, submitted, taskId: task?.id });
+
+    // 👉 关键改进 1：检查任务信息是否完整（修复 taskId undefined 错误）
+    if (!task || !task.id) {
+      error = '❌ 任务信息不完整，无法提交';
+      console.warn('task 或 task.id 不存在:', { task, taskId: task?.id });
+      return;
+    }
+
+    // 👉 关键改进 2：更清晰的登录检查
     if (!userId) {
-      error = '请先登录';
+      error = '❌ 请先登录后再提交评分';
+      console.warn('用户未登录，无法提交');
       return;
     }
 
     if (submitted) {
-      error = '你已经提交过评分了';
+      error = '⚠️ 你已经提交过评分了，无法重复提交';
+      console.warn('用户已经提交过');
       return;
     }
 
@@ -96,22 +126,49 @@
     successMessage = '';
 
     try {
+      console.log('📝 准备提交评分...');
       const scoreArray = Object.entries(scores).map(([dimension, score]) => ({
         dimension,
         score: score as number
       }));
 
+      console.log('📤 发送请求到 submitScores:', {
+        taskId: task.id,
+        userId,
+        scoresCount: scoreArray.length
+      });
+
       await submitScores(task.id, userId, scoreArray);
+      
       submitted = true;
       successMessage = '✅ 评分已提交成功！感谢你的参与！';
+      console.log('✅ 提交成功');
+      
       await loadStats();
       
       // 3秒后关闭成功消息
       setTimeout(() => {
         successMessage = '';
       }, 3000);
-    } catch (err) {
-      error = `提交失败: ${err instanceof Error ? err.message : '未知错误'}`;
+    } catch (err: any) {
+      // 👉 关键改进 3：更详细的错误处理
+      console.error('❌ 提交失败，详细错误:', err);
+      
+      const errorMsg = err?.message || err?.error_description || '未知错误';
+      
+      // 根据错误类型显示不同的提示
+      if (errorMsg.includes('认证') || errorMsg.includes('Auth')) {
+        error = '❌ 认证失败，请重新登录后再试';
+      } else if (errorMsg.includes('权限') || errorMsg.includes('42501')) {
+        error = '❌ 权限不足（RLS 策略问题）：请联系管理员检查数据库配置';
+      } else if (errorMsg.includes('已经') || errorMsg.includes('UNIQUE') || errorMsg.includes('23505')) {
+        error = '❌ 你已经提交过该任务的评分了';
+        submitted = true;
+      } else if (errorMsg.includes('ID不匹配')) {
+        error = '❌ 用户身份验证失败，请重新登录';
+      } else {
+        error = `❌ 提交失败: ${errorMsg}`;
+      }
     } finally {
       loading = false;
     }
@@ -157,8 +214,7 @@
 </script>
 
 <main class="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-  <Navbar onLoginClick={() => {}} />
-
+<Navbar onLoginClick={handleLoginClick} />
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- 返回按钮 -->
     <button
@@ -237,7 +293,7 @@
         <div class="mb-6 p-4 rounded-lg bg-red-500/20 border border-red-500/50 flex items-start gap-3">
           <AlertCircle class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p class="text-red-300 font-semibold">错误</p>
+            <p class="text-red-300 font-semibold">错误提示</p>
             <p class="text-red-200 text-sm">{error}</p>
           </div>
         </div>
@@ -284,12 +340,15 @@
           <!-- 提交按钮 -->
           <button
             on:click={handleSubmit}
-            disabled={loading}
+            disabled={loading || !userId}
             class="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {#if loading}
               <Loader class="w-5 h-5 animate-spin" />
               <span>提交中...</span>
+            {:else if !userId}
+              <AlertCircle class="w-5 h-5" />
+              <span>请先登录</span>
             {:else}
               <CheckCircle2 class="w-5 h-5" />
               <span>提交评分</span>

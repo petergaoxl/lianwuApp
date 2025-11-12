@@ -50,7 +50,8 @@ export async function publishTask(
         end_date: data.endDate.toISOString(),
         requirements: data.requirements || [],
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // created_by: userId,
       })
       .select()
       .single();
@@ -65,6 +66,7 @@ export async function publishTask(
       await supabase
         .from('task_logs')
         .insert({
+            created_by: userId,
           task_id: insertedData.id,
           user_id: userId,
           action: 'created',
