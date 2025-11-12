@@ -1,27 +1,18 @@
 // src/lib/services/task.service.ts
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '$lib/supabaseClient';
 import type { Task, TaskSubmission, UserTaskStats } from '$lib/types/task.types';
 
-// 初始化 Supabase 客户端
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('缺少 Supabase 环境变量: VITE_SUPABASE_URL 或 VITE_SUPABASE_ANON_KEY');
-}
-
-const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
 /**
- * 获取用户的所有任务
+ * 获取用户的所有任务（包括发布的和被分配的）
  */
 export async function getUserTasks(userId: string): Promise<Task[]> {
   try {
-    const { data, error } = await supabaseClient
+    // 查询：用户发布的任务 OR 分配给用户的任务 OR 未分配的公开任务
+    const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .or(`assigned_to.is.null,assigned_to.eq.${userId}`)
+      .or(`created_by.eq.${userId},assigned_to.eq.${userId},assigned_to.is.null`)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -53,7 +44,7 @@ export async function getUserTasks(userId: string): Promise<Task[]> {
  */
 export async function getUserTaskStats(userId: string): Promise<UserTaskStats> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('user_task_stats')
       .select('*')
       .eq('user_id', userId)
@@ -120,7 +111,7 @@ export async function updateTaskStatus(
   userId: string
 ): Promise<Task> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('tasks')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', taskId)
@@ -167,7 +158,7 @@ export async function claimReward(taskId: string, userId: string): Promise<{ tas
     const task = await updateTaskStatus(taskId, 'claimed', userId);
 
     // 2. 获取任务的奖励
-    const { data: taskData, error: taskError } = await supabaseClient
+    const { data: taskData, error: taskError } = await supabase
       .from('tasks')
       .select('reward')
       .eq('id', taskId)
@@ -176,7 +167,7 @@ export async function claimReward(taskId: string, userId: string): Promise<{ tas
     if (taskError) throw taskError;
 
     // 3. 更新用户余额
-    const { data: userData, error: userError } = await supabaseClient
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('balance, total_earned')
       .eq('id', userId)
@@ -187,7 +178,7 @@ export async function claimReward(taskId: string, userId: string): Promise<{ tas
     const newBalance = (userData?.balance || 0) + (taskData?.reward || 0);
     const newTotalEarned = (userData?.total_earned || 0) + (taskData?.reward || 0);
 
-    const { error: updateError } = await supabaseClient
+    const { error: updateError } = await supabase
       .from('users')
       .update({ balance: newBalance, total_earned: newTotalEarned })
       .eq('id', userId);
@@ -195,7 +186,7 @@ export async function claimReward(taskId: string, userId: string): Promise<{ tas
     if (updateError) throw updateError;
 
     // 4. 记录交易日志
-    await supabaseClient
+    await supabase
       .from('transaction_logs')
       .insert({
         user_id: userId,
@@ -221,7 +212,7 @@ export async function submitTask(
   proof?: string
 ): Promise<TaskSubmission> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('task_submissions')
       .insert({
         task_id: taskId,
@@ -263,7 +254,7 @@ export async function getTaskSubmission(
   userId: string
 ): Promise<TaskSubmission | null> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('task_submissions')
       .select('*')
       .eq('task_id', taskId)
@@ -302,7 +293,7 @@ export async function updateTaskProgress(
   progress: number
 ): Promise<Task> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('tasks')
       .update({ progress, updated_at: new Date().toISOString() })
       .eq('id', taskId)
@@ -340,7 +331,7 @@ export async function getActiveTasks(): Promise<Task[]> {
   try {
     const now = new Date().toISOString();
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('tasks')
       .select('*')
       .or(`end_date.is.null,end_date.gt.${now}`)
@@ -375,7 +366,7 @@ export async function getActiveTasks(): Promise<Task[]> {
  */
 export async function getTasksByCategory(category: string): Promise<Task[]> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('tasks')
       .select('*')
       .eq('category', category)

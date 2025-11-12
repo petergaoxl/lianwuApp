@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Trophy } from 'lucide-svelte';
+  import { goto } from '$app/navigation';
+  import { Trophy, ChevronRight } from 'lucide-svelte';
   import type { Task } from '$lib/types/task.types';
   
   export let task: Task;
@@ -38,11 +39,21 @@
     return colorMap[status] || 'bg-gray-500/20 text-gray-400';
   }
   
+  function handleTaskClick() {
+    goto(`/tasks/${task.id}`);
+  }
+  
   $: categoryColor = getCategoryColor(task.category);
   $: progressPercentage = task.total ? (task.progress || 0) / task.total * 100 : 0;
 </script>
 
-<div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all group">
+<div 
+  class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all group cursor-pointer"
+  on:click={handleTaskClick}
+  on:keydown={(e) => e.key === 'Enter' && handleTaskClick()}
+  role="button"
+  tabindex="0"
+>
   <div class="flex items-start justify-between">
     <div class="flex-1">
       <!-- 标题和分类标记 -->
@@ -96,14 +107,18 @@
       </div>
     </div>
     
-    <!-- 领取按钮 -->
-    {#if task.status === 'completed'}
-      <button
-        on:click={() => onClaim(task.id)}
-        class="ml-4 px-6 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all font-semibold shadow-lg shadow-green-500/30 hover:shadow-green-500/50"
-      >
-        领取奖励
-      </button>
-    {/if}
+    <!-- 右侧操作区域 -->
+    <div class="ml-4 flex items-center gap-3 flex-shrink-0">
+      {#if task.status === 'completed'}
+        <button
+          on:click|stopPropagation={() => onClaim(task.id)}
+          class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all font-semibold shadow-lg shadow-green-500/30 hover:shadow-green-500/50"
+        >
+          领取奖励
+        </button>
+      {:else}
+        <ChevronRight class="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
+      {/if}
+    </div>
   </div>
 </div>
