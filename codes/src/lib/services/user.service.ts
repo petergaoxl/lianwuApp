@@ -5,16 +5,17 @@ import type { Web3AuthLoginResult } from '$lib/services/web3auth.service';
 // 和我们 auth.store.ts 里一致
 export type LoginMethod = 'google' | 'discord' | 'metamask';
 
+// ✅ 修复：id 改成非可选字段
 export type AppUser = {
-  id?: string;  // ← 添加
+  id: string;           // ← 改成必需（删除 ?）
   address: string;
   email?: string | null;
   name?: string | null;
   avatarUrl?: string | null;
   loginMethod: LoginMethod;
   oauthProvider?: string | null;
-  balance?: number;  // ← 添加
-  totalEarned?: number;  // ← 添加
+  balance?: number;
+  totalEarned?: number;
 };
 
 /** 根据 Web3Auth 的 userInfo 推断社交登录具体是 Google 还是 Discord */
@@ -50,8 +51,8 @@ export async function upsertUserFromWeb3Auth(
     email,
     name,
     avatar_url: avatarUrl,
-      balance: 0,  // ← 添加
-  total_earned: 0,  // ← 添加
+    balance: 0,
+    total_earned: 0,
   };
 
   console.log('📝 准备写入 users 表: ', payload);
@@ -67,28 +68,32 @@ export async function upsertUserFromWeb3Auth(
     throw error;
   }
 
-return {
-  id: data?.id,  // ← 添加
-  address: loginResult.address,
-  email,
-  name,
-  avatarUrl,
-  loginMethod: detectedMethod,
-  oauthProvider,
-  balance: data?.balance ?? 0,  // ← 添加
-  totalEarned: data?.total_earned ?? 0,  // ← 添加
-};
+  // ✅ 修复：添加验证确保 id 存在
+  if (!data?.id) {
+    throw new Error('❌ 用户 ID 创建失败，无法继续登录');
+  }
+
+  return {
+    id: data.id,  // ✅ 确保返回有效的 id
+    address: loginResult.address,
+    email,
+    name,
+    avatarUrl,
+    loginMethod: detectedMethod,
+    oauthProvider,
+    balance: data?.balance ?? 0,
+    totalEarned: data?.total_earned ?? 0,
+  };
 }
 
-/** 只用 MetaMask 地址写入 users（没有 userInfo） */
+/** 把 MetaMask 的登录结果写入 users 表，并返回 AppUser */
 export async function upsertUserFromMetaMask(address: string): Promise<AppUser> {
   const payload = {
     wallet_address: address,
-    login_method: 'metamask' as const,
-    oauth_provider: 'metamask',
+    login_method: 'metamask',
   };
 
-  console.log('📝 准备写入 users 表( MetaMask ): ', payload);
+  console.log('📝 准备写入 users 表: ', payload);
 
   const { data, error } = await supabase
     .from('users')
@@ -97,18 +102,18 @@ export async function upsertUserFromMetaMask(address: string): Promise<AppUser> 
     .single();
 
   if (error) {
-    console.error('❌ 保存 MetaMask 用户到数据库失败: ', error);
+    console.error('❌ 保存用户到数据库失败: ', error);
     throw error;
   }
 
+  // ✅ 修复：添加验证确保 id 存在
+  if (!data?.id) {
+    throw new Error('❌ 用户 ID 创建失败，无法继续登录');
+  }
+
   return {
+    id: data.id,  // ✅ 确保返回有效的 id
     address,
     loginMethod: 'metamask',
-    email: data?.email ?? null,
-    name: data?.name ?? null,
-    avatarUrl: data?.avatar_url ?? null,
-    oauthProvider: data?.oauth_provider ?? 'metamask',
   };
 }
-
-

@@ -50,7 +50,8 @@ export async function publishTask(
         end_date: data.endDate.toISOString(),
         requirements: data.requirements || [],
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // created_by: userId,
       })
       .select()
       .single();

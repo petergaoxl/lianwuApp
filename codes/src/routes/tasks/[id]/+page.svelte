@@ -7,12 +7,12 @@
   import { taskStore } from '$lib/stores/task.store';
   import { submitScores, getTaskScores, getUserSubmission } from '$lib/services/interactive.service';
   import type { Task } from '$lib/types/task.types';
+  import type { LoginMethod } from '$lib/services/user.service';
 
   export let data;
 
   let task: Task | null = null;
-  let userId = $authStore.user?.id || '';
-  
+$: userId = $authStore.user?.id || '';  // ✅ 反应式变量  
   // 打分相关状态
   let dimensions = [
     { name: '设计美感', key: 'design' },
@@ -34,6 +34,16 @@
   let successMessage = '';
   let statsData: any = null;
   let showStats = false;
+
+  async function handleLoginClick() {
+  try {
+    console.log('🔗 用户点击连接钱包');
+    await authStore.loginWithWeb3Auth('google');
+    console.log('✅ 登录成功');
+  } catch (err) {
+    console.error('❌ 登录失败:', err);
+  }
+}
 
   onMount(async () => {
     console.log('📍 onMount 触发, userId:', userId);
@@ -204,8 +214,7 @@
 </script>
 
 <main class="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-  <Navbar onLoginClick={() => {}} />
-
+<Navbar onLoginClick={handleLoginClick} />
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- 返回按钮 -->
     <button
