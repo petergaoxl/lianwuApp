@@ -37,8 +37,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         'Access-Control-Allow-Credentials': 'true',
         
         // COOP/COEP 头 - 允许弹窗（Web3Auth）
-        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
+        // 'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        // 'Cross-Origin-Embedder-Policy': 'require-corp',
       }
     });
   }

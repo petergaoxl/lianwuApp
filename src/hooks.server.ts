@@ -37,8 +37,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         'Access-Control-Allow-Credentials': 'true',
         
         // COOP/COEP 头 - 允许弹窗（Web3Auth）
-        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
+        // 'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        // 'Cross-Origin-Embedder-Policy': 'require-corp',
       }
     });
   }
@@ -55,8 +55,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // 添加安全头 - 允许弹窗（Web3Auth、MetaMask）
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+//   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+//   response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
 
   // 添加其他安全头
   response.headers.set('X-Content-Type-Options', 'nosniff');
