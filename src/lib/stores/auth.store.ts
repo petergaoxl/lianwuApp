@@ -1,5 +1,5 @@
-// src/lib/stores/auth.store.ts
-import { writable } from 'svelte/store';
+import { browser } from '$app/environment';
+import { writable, get } from 'svelte/store';
 import {
   loginWithGoogleWeb3Auth,
   loginWithMetaMaskDirect,
@@ -20,8 +20,24 @@ type AuthState = {
 };
 
 function createAuthStore() {
+  // 1. 初始化时尝试从 localStorage 恢复
+  let initialUser: AppUser | null = null;
+  
+  // ✅ 修复：仅在浏览器环境访问 localStorage，避免 SSR 报错
+  if (browser && typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('lianwu_user');
+    if (stored) {
+      try {
+        initialUser = JSON.parse(stored);
+      } catch (e) {
+        console.error('解析本地用户数据失败', e);
+        localStorage.removeItem('lianwu_user');
+      }
+    }
+  }
+
   const { subscribe, set, update } = writable<AuthState>({
-    user: null,
+    user: initialUser,
     isLoading: false,
     error: null,
   });
@@ -69,6 +85,11 @@ function createAuthStore() {
           user.address
         );
 
+        // ✅ 保存到 localStorage
+        if (browser && typeof localStorage !== 'undefined') {
+          localStorage.setItem('lianwu_user', JSON.stringify(user));
+        }
+
         set({ user, isLoading: false, error: null });
         return user;
       } catch (e: any) {
@@ -81,16 +102,18 @@ function createAuthStore() {
 
     /** 登出：如果是 Web3Auth（google/discord），调用 Web3Auth logout；MetaMask 只清本地状态 */
     async logout() {
-      let currentUser: AppUser | null = null;
+      const currentUser = get({ subscribe }).user;
 
-      update((s) => {
-        currentUser = s.user;
-        return { ...s, isLoading: true, error: null };
-      });
+      update((s) => ({ ...s, isLoading: true, error: null }));
 
       try {
-        if (currentUser?.loginMethod === 'google' || currentUser?.loginMethod === 'discord') {
+        if (currentUser && (currentUser.loginMethod === 'google' || currentUser.loginMethod === 'discord')) {
           await logoutWeb3Auth();
+        }
+
+        // ✅ 清理 localStorage
+        if (browser && typeof localStorage !== 'undefined') {
+          localStorage.removeItem('lianwu_user');
         }
 
         set({ user: null, isLoading: false, error: null });

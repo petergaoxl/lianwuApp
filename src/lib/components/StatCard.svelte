@@ -8,28 +8,28 @@
   export let color: string = 'purple';
   
   const colorMap: Record<string, string> = {
-    purple: 'from-purple-500/10 to-purple-500/5 border-purple-500/20',
-    cyan: 'from-cyan-500/10 to-cyan-500/5 border-cyan-500/20',
-    pink: 'from-pink-500/10 to-pink-500/5 border-pink-500/20',
-    green: 'from-green-500/10 to-green-500/5 border-green-500/20',
+    purple: 'bg-violet-500/10 border-violet-500/20 text-violet-400',
+    cyan: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400',
+    pink: 'bg-pink-500/10 border-pink-500/20 text-pink-400',
+    green: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
   };
   
-  const iconColorMap: Record<string, string> = {
-    purple: 'text-purple-400',
-    cyan: 'text-cyan-400',
-    pink: 'text-pink-400',
-    green: 'text-green-400',
-  };
-  
-  $: cardColor = colorMap[color] || colorMap.purple;
-  $: iconColor = iconColorMap[color] || iconColorMap.purple;
+  $: theme = colorMap[color] || colorMap.purple;
 </script>
 
-<div class={`p-6 rounded-2xl bg-gradient-to-br ${cardColor} border backdrop-blur-sm hover:scale-105 transition-transform`}>
-  <div class="flex items-center justify-between mb-2">
-    <span class="text-gray-400">{title}</span>
-    <svelte:component this={icon} class={`w-5 h-5 ${iconColor}`} />
+<div class="group relative overflow-hidden rounded-xl border border-white/5 bg-surface-200/50 p-6 backdrop-blur-sm transition-all hover:bg-surface-300/50 hover:border-white/10 hover:shadow-lg hover:shadow-black/20">
+  <div class="flex items-center justify-between mb-4">
+    <span class="text-sm font-medium text-slate-400">{title}</span>
+    <div class={`p-2 rounded-lg ${theme}`}>
+      <svelte:component this={icon} class="w-4 h-4" />
+    </div>
   </div>
-  <div class="text-3xl font-bold mb-1">{value}</div>
-  <div class="text-sm text-gray-500">{subtitle}</div>
+  
+  <div class="flex items-baseline gap-2">
+    <span class="text-2xl font-bold text-slate-100 tracking-tight">{value}</span>
+  </div>
+  
+  <div class="mt-1 text-xs text-slate-500">
+    {subtitle}
+  </div>
 </div>

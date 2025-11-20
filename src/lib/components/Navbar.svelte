@@ -78,16 +78,16 @@ async function refreshBalance(address: string) {
 	}
 </script>
 
-<nav class="relative z-10 border-b border-white/10 bg-black/20 backdrop-blur-xl">
+<nav class="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-slate-950/80 backdrop-blur-md supports-[backdrop-filter]:bg-slate-950/60">
 	<div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
 		<a href="/" class="flex items-center gap-3 transition-opacity hover:opacity-80">
 			<div
-				class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 shadow-lg shadow-purple-500/30"
+				class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-indigo-600 shadow-lg shadow-primary-500/20"
 			>
-				<Zap class="h-6 w-6" />
+				<Zap class="h-5 w-5 text-white" />
 			</div>
 			<span
-				class="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-2xl font-bold text-transparent"
+				class="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-xl font-bold tracking-tight text-transparent"
 			>
 				Lianwu
 			</span>
@@ -96,48 +96,38 @@ async function refreshBalance(address: string) {
 		<div class="flex items-center gap-3">
 			{#if user}
 				<div
-					class="rounded-xl px-4 py-2 {isCorrectNetwork
-						? 'border-green-500/30 bg-green-500/20'
-						: 'border-yellow-500/30 bg-yellow-500/20'} border backdrop-blur-sm"
+					class="hidden sm:flex items-center gap-2 rounded-lg border border-white/5 bg-surface-100 px-3 py-1.5 backdrop-blur-sm"
 				>
-					<div class="flex items-center gap-2">
-						<Network class="h-4 w-4 {isCorrectNetwork ? 'text-green-400' : 'text-yellow-400'}" />
-						<span class="text-xs font-medium">{currentNetwork}</span>
-					</div>
+					<Network class="h-3.5 w-3.5 {isCorrectNetwork ? 'text-emerald-400' : 'text-amber-400'}" />
+					<span class="text-xs font-medium text-slate-300">{currentNetwork}</span>
 				</div>
 
 				<div
-					class="rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 px-6 py-2 backdrop-blur-sm"
+					class="hidden sm:flex items-center gap-2 rounded-lg border border-primary-500/20 bg-primary-500/10 px-4 py-1.5 backdrop-blur-sm"
 				>
-					<div class="flex items-center gap-2">
-						<Trophy class="h-5 w-5 text-yellow-400" />
-						<!-- <span class="text-lg font-bold">{balance}</span>
-						<span class="text-sm text-gray-400">Tokens</span> -->
-						<span class="text-lg font-bold">
-							{balance.toFixed(4)}
-						</span>
-						<span class="text-sm text-gray-400">ETH (Taiko)</span>
-					</div>
+					<Trophy class="h-4 w-4 text-primary-400" />
+					<span class="text-sm font-bold text-primary-100">
+						{balance.toFixed(4)}
+					</span>
+					<span class="text-xs text-primary-300/70">ETH</span>
 				</div>
 
-				<div class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-					<div class="flex items-center gap-2">
-						<Wallet class="h-4 w-4 text-purple-400" />
-						<span class="font-mono text-sm">{formatAddress(user.address)}</span>
-					</div>
+				<div class="hidden sm:flex items-center gap-2 rounded-lg border border-white/5 bg-surface-100 px-3 py-1.5 backdrop-blur-sm">
+					<Wallet class="h-3.5 w-3.5 text-slate-400" />
+					<span class="font-mono text-xs text-slate-300">{formatAddress(user.address)}</span>
 				</div>
 
 				<button
 					on:click={handleLogout}
-					class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm transition-all hover:border-red-500/30 hover:bg-red-500/20"
+					class="flex items-center gap-2 rounded-lg border border-white/5 bg-surface-100 px-3 py-1.5 text-slate-300 transition-all hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
 				>
-					<LogOut class="h-4 w-4" />
-					<span class="text-sm font-medium">登出</span>
+					<LogOut class="h-3.5 w-3.5" />
+					<span class="text-xs font-medium">登出</span>
 				</button>
 			{:else}
 				<button
 					on:click={onLoginClick}
-					class="rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 px-6 py-2.5 font-semibold shadow-lg shadow-purple-500/30 transition-all hover:from-purple-600 hover:to-cyan-600 hover:shadow-purple-500/50"
+					class="rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-500 hover:shadow-primary-500/30"
 				>
 					连接钱包
 				</button>
